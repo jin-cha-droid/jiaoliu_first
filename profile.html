@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的资料 - 我的独立论坛</title>
+    <!-- 引入Bootstrap样式+图标 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { min-height: 100vh; display: flex; flex-direction: column; background-color: #f8f9fa; }
+        .main-content { flex: 1; }
+        .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card { border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .avatar-upload { position: relative; width: 120px; height: 120px; margin: 0 auto; }
+        .avatar-upload img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+        .avatar-upload .avatar-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; opacity: 0; transition: opacity 0.2s; cursor: pointer; }
+        .avatar-upload:hover .avatar-overlay { opacity: 1; }
+        .form-control-sm { max-width: 400px; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="bi bi-chat-dots-fill me-2"></i>我的独立论坛
+            </a>
+            <div class="d-flex align-items-center">
+                <a href="index.html" class="btn btn-sm btn-outline-light me-2">
+                    <i class="bi bi-arrow-left me-1"></i> 返回论坛
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="main-content container py-4">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-light text-center">
+                        <h6 class="mb-0"><i class="bi bi-person-fill me-2"></i>我的个人资料</h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- 头像上传 -->
+                        <div class="text-center mb-4">
+                            <div class="avatar-upload">
+                                <img src="" alt="我的头像" id="current-avatar">
+                                <div class="avatar-overlay" onclick="document.getElementById('avatar-input').click()">
+                                    <i class="bi bi-camera fs-4"></i>
+                                </div>
+                                <input type="file" id="avatar-input" class="d-none" accept="image/*" onchange="uploadAvatar()">
+                            </div>
+                            <p class="form-text text-sm text-muted mt-2">支持JPG/PNG格式，建议尺寸200x200，大小不超过2MB</p>
+                        </div>
+
+                        <!-- 昵称修改 -->
+                        <div class="mb-4">
+                            <label class="form-label small">自定义昵称 <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control form-control-sm" id="username-input" placeholder="请输入你的昵称（2-16字，不可重复）" maxlength="16">
+                                <button class="btn btn-sm btn-primary" onclick="updateUsername()"><i class="bi bi-save me-1"></i>保存</button>
+                            </div>
+                            <p class="form-text text-sm text-muted" id="username-tip"></p>
+                        </div>
+
+                        <!-- 账号信息 -->
+                        <div class="border-top pt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted small">登录邮箱</span>
+                                <span id="user-email" class="fw-medium"></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">注册时间</span>
+                                <span id="user-create-time" class="fw-medium"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-3 mt-5">
+        <div class="container text-center text-sm">
+            <p class="mb-0">© 2026 我的独立论坛 | 基于Supabase + GitHub Pages搭建 | 完全免费 · 独立无依赖</p>
+        </div>
+    </footer>
+
+    <!-- 引入核心JS文件 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+
+    <script>
+        // ========== 替换为你自己的Supabase信息 ==========
+        const SUPABASE_URL = "https://qnensenwgnopttgaepux.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_UB0PqlIa7ylybuvUqoWa1A_73oOWegR";
+        // ===============================================
+
+        // 初始化Supabase客户端
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // 全局变量
+        let currentUser = null;
+        let userProfile = null;
+
+        // 页面加载初始化
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 验证登录状态（未登录跳回首页）
+            await checkLogin();
+            // 加载用户资料
+            await loadUserProfile();
+        });
+
+        // 验证登录状态
+        async function checkLogin() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                alert('请先登录！');
+                window.location.href = 'index.html';
+                return;
+            }
+            currentUser = user;
+            // 显示邮箱和注册时间
+            document.getElementById('user-email').innerText = user.email;
+            document.getElementById('user-create-time').innerText = formatTime(user.created_at);
+        }
+
+        // 加载用户资料
+        async function loadUserProfile() {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('username, avatar_url')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (error) {
+                alert('加载个人资料失败：' + error.message);
+                console.error(error);
+                return;
+            }
+
+            userProfile = data;
+            // 显示头像和昵称
+            document.getElementById('current-avatar').src = data.avatar_url || 'https://picsum.photos/200/200';
+            document.getElementById('username-input').value = data.username;
+        }
+
+        // 上传头像
+        async function uploadAvatar() {
+            const file = document.getElementById('avatar-input').files[0];
+            if (!file) return;
+
+            // 验证文件
+            const allowedTypes = ['image/jpeg', 'image/png'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('仅支持JPG/PNG格式的图片！');
+                return;
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                alert('图片大小不能超过2MB！');
+                return;
+            }
+
+            try {
+                // 显示加载状态
+                const avatarOverlay = document.querySelector('.avatar-overlay');
+                avatarOverlay.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div>';
+                avatarOverlay.style.opacity = 1;
+
+                // 构建文件名：用户ID/avatar-时间戳.后缀
+                const ext = file.type.split('/')[1];
+                const fileName = `${currentUser.id}/avatar-${Date.now()}.${ext}`;
+
+                // 上传到Supabase存储
+                const { data, error } = await supabase
+                    .storage
+                    .from('forum-assets')
+                    .upload(fileName, file, {
+                        cacheControl: '3600',
+                        upsert: true, // 覆盖原有头像
+                        contentType: file.type
+                    });
+
+                if (error) throw error;
+
+                // 获取图片公共链接
+                const { data: { publicUrl } } = supabase
+                    .storage
+                    .from('forum-assets')
+                    .getPublicUrl(data.path);
+
+                // 更新用户资料表
+                const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({ avatar_url: publicUrl })
+                    .eq('id', currentUser.id);
+
+                if (updateError) throw updateError;
+
+                // 上传成功
+                userProfile.avatar_url = publicUrl;
+                document.getElementById('current-avatar').src = publicUrl;
+                alert('头像上传成功！');
+
+            } catch (err) {
+                alert('头像上传失败：' + err.message);
+                console.error(err);
+            } finally {
+                // 恢复上传按钮
+                const avatarOverlay = document.querySelector('.avatar-overlay');
+                avatarOverlay.innerHTML = '<i class="bi bi-camera fs-4"></i>';
+                // 清空文件输入框
+                document.getElementById('avatar-input').value = '';
+            }
+        }
+
+        // 更新昵称
+        async function updateUsername() {
+            const newName = document.getElementById('username-input').value.trim();
+            const tip = document.getElementById('username-tip');
+
+            // 验证昵称
+            if (!newName) {
+                tip.innerText = '昵称不能为空！';
+                tip.className = 'form-text text-sm text-danger';
+                return;
+            }
+            if (newName.length < 2 || newName.length > 16) {
+                tip.innerText = '昵称长度必须在2-16字之间！';
+                tip.className = 'form-text text-sm text-danger';
+                return;
+            }
+            if (newName === userProfile.username) {
+                tip.innerText = '昵称未修改，无需保存！';
+                tip.className = 'form-text text-sm text-muted';
+                return;
+            }
+
+            // 检查昵称是否已存在
+            const { data: existUser, error: existError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('username', newName)
+                .single();
+
+            if (existUser) {
+                tip.innerText = '该昵称已被占用，请更换！';
+                tip.className = 'form-text text-sm text-danger';
+                return;
+            }
+            if (existError && existError.code !== 'PGRST116') {
+                // PGRST116为正常的"无数据"错误，其他为异常
+                alert('检查昵称失败：' + existError.message);
+                console.error(existError);
+                return;
+            }
+
+            // 更新昵称
+            const { error } = await supabase
+                .from('profiles')
+                .update({ username: newName })
+                .eq('id', currentUser.id);
+
+            if (error) {
+                alert('昵称修改失败：' + error.message);
+                console.error(error);
+                return;
+            }
+
+            // 修改成功
+            userProfile.username = newName;
+            tip.innerText = '昵称修改成功！';
+            tip.className = 'form-text text-sm text-success';
+            // 延迟重置提示
+            setTimeout(() => {
+                tip.innerText = '2-16字，不可与其他用户重复';
+                tip.className = 'form-text text-sm text-muted';
+            }, 2000);
+        }
+
+        // 格式化时间
+        function formatTime(timeStr) {
+            const date = new Date(timeStr);
+            return date.getFullYear() + '-' +
+                String(date.getMonth() + 1).padStart(2, '0') + '-' +
+                String(date.getDate()).padStart(2, '0') + ' ' +
+                String(date.getHours()).padStart(2, '0') + ':' +
+                String(date.getMinutes()).padStart(2, '0');
+        }
+    </script>
+</body>
+</html>
